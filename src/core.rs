@@ -3,7 +3,6 @@ use std::convert::TryFrom;
 use std::fmt::Debug;
 
 use anyhow::{Context, Result};
-use crossbeam_channel::unbounded;
 use git2::{BranchType, Config, Repository};
 use log::*;
 use rayon::prelude::*;
@@ -16,6 +15,9 @@ use crate::merge_tracker::MergeTracker;
 use crate::subprocess::{self, get_worktrees, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, BaseSpec, Git};
+
+use indicatif::ParallelProgressIterator;
+use rayon::iter::ParallelIterator;
 
 pub struct TrimPlan {
     pub skipped: HashMap<String, SkipSuggestion>,
@@ -576,28 +578,21 @@ impl<'a> Classifier<'a> {
 
     pub fn classify(self) -> Result<Vec<ClassificationResponse>> {
         info!("Classify {} requests", self.tasks.len());
-        let tasks = self.tasks;
-        let receiver = rayon::scope(move |scope| {
-            let (sender, receiver) = unbounded();
-            for tasks in tasks {
-                let sender = sender.clone();
-                scope.spawn(move |_| {
-                    let result = tasks();
-                    sender.send(result).unwrap();
-                })
-            }
-            receiver
-        });
 
-        let mut results = Vec::new();
-        for result in receiver {
-            let ClassificationResponseWithId { id, response } = result?;
-            debug!("Result #{}: {:#?}", id, response);
+        let len = self.tasks.len() as u64;
+        let results: Result<Vec<_>> = self
+            .tasks
+            .into_par_iter()
+            .progress_count(len)
+            .map(|task| task())
+            .map(|res| {
+                let ClassificationResponseWithId { id, response } = res?;
+                debug!("Result #{}: {:#?}", id, response);
+                Ok(response)
+            })
+            .collect();
 
-            results.push(response);
-        }
-
-        Ok(results)
+        return results;
     }
 }
 
