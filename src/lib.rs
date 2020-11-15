@@ -89,6 +89,13 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     let mut classifier = Classifier::new(git, &merge_tracker);
     let mut skipped = HashMap::new();
 
+    let mut remotes = vec![];
+    for remote_name in git.repo.remotes()?.iter() {
+        let remote_name = remote_name.context("non-utf8 remote name")?;
+        let remote = git.repo.find_remote(&remote_name)?;
+        remotes.push(remote);
+    }
+
     info!("Enqueue classification requests");
     if param.delete.scan_tracking() {
         for (local, upstream) in &tracking_branches {
@@ -116,7 +123,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     } else {
         for (local, upstream) in &tracking_branches {
             if let Some(upstream) = upstream {
-                let remote = upstream.to_remote_branch(&git.repo)?.remote;
+                let remote = upstream.to_remote_branch_cached(&remotes)?.remote;
                 let suggestion = SkipSuggestion::TrackingRemote(remote);
                 skipped.insert(local.refname.clone(), suggestion.clone());
                 skipped.insert(upstream.refname.clone(), suggestion.clone());
@@ -144,14 +151,14 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
 
     for base in &base_upstreams {
         for remote_tracking in &non_upstream_branches {
-            let remote = remote_tracking.to_remote_branch(&git.repo)?;
+            let remote = remote_tracking.to_remote_branch_cached(&remotes)?;
             if param.delete.scan_non_upstream_remote(&remote.remote) {
                 classifier.queue_request(NonUpstreamBranchClassificationRequest {
                     base,
                     remote: remote_tracking,
                 });
             } else {
-                let remote = remote_tracking.to_remote_branch(&git.repo)?.remote;
+                let remote = remote_tracking.to_remote_branch_cached(&remotes)?.remote;
                 skipped.insert(
                     remote_tracking.refname.clone(),
                     SkipSuggestion::NonUpstream(remote),

@@ -145,6 +145,27 @@ impl RemoteTrackingBranch {
         }
         Err(RemoteBranchError::RemoteNotFound)
     }
+
+    /// Faster implementation that avoids calling git2::Repository methods remotes() and find_remote().
+    pub fn to_remote_branch_cached(
+        &self,
+        remotes: &Vec<git2::Remote>,
+    ) -> std::result::Result<RemoteBranch, RemoteBranchError> {
+        for remote in remotes.iter() {
+            if let Some(expanded) = expand_refspec(
+                &remote,
+                &self.refname,
+                Direction::Fetch,
+                ExpansionSide::Left,
+            )? {
+                return Ok(RemoteBranch {
+                    remote: remote.name().context("non-utf8 remote name")?.to_string(),
+                    refname: expanded,
+                });
+            }
+        }
+        Err(RemoteBranchError::RemoteNotFound)
+    }
 }
 
 impl Refname for RemoteTrackingBranch {
