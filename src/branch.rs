@@ -125,30 +125,8 @@ impl RemoteTrackingBranch {
         Ok(RemoteTrackingBranchStatus::None)
     }
 
-    pub fn to_remote_branch(
-        &self,
-        repo: &Repository,
-    ) -> std::result::Result<RemoteBranch, RemoteBranchError> {
-        for remote_name in repo.remotes()?.iter() {
-            let remote_name = remote_name.context("non-utf8 remote name")?;
-            let remote = repo.find_remote(&remote_name)?;
-            if let Some(expanded) = expand_refspec(
-                &remote,
-                &self.refname,
-                Direction::Fetch,
-                ExpansionSide::Left,
-            )? {
-                return Ok(RemoteBranch {
-                    remote: remote.name().context("non-utf8 remote name")?.to_string(),
-                    refname: expanded,
-                });
-            }
-        }
-        Err(RemoteBranchError::RemoteNotFound)
-    }
-
-    /// Faster implementation that avoids calling git2::Repository methods remotes() and find_remote().
-    pub fn to_remote_branch_cached<'a>(
+    /// Convert to the associated RemoteBranch.
+    pub fn to_remote_branch<'a>(
         &self,
         remotes: impl IntoIterator<Item = &'a git2::Remote<'a>>,
     ) -> std::result::Result<RemoteBranch, RemoteBranchError> {

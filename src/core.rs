@@ -14,6 +14,7 @@ use crate::branch::{
 };
 use crate::merge_tracker::MergeTracker;
 use crate::subprocess::{self, get_worktrees, RemoteHead};
+use crate::util::get_remotes;
 use crate::util::ForceSendSync;
 use crate::{config, BaseSpec, Git};
 
@@ -265,6 +266,8 @@ impl TrimPlan {
     ) -> Result<()> {
         let mut preserve = Vec::new();
 
+        let remotes = get_remotes(&repo)?;
+
         for branch in &self.to_delete {
             let range = match branch {
                 ClassifiedBranch::MergedLocal(_) => {
@@ -282,7 +285,7 @@ impl TrimPlan {
                     }
                 }
                 ClassifiedBranch::MergedRemoteTracking(upstream) => {
-                    let remote = upstream.to_remote_branch(repo)?;
+                    let remote = upstream.to_remote_branch(&remotes)?;
                     if !filter.delete_merged_remote(&remote.remote) {
                         Some(format!("merged-remote:{}", &remote.remote))
                     } else {
@@ -290,7 +293,7 @@ impl TrimPlan {
                     }
                 }
                 ClassifiedBranch::DivergedRemoteTracking { upstream, .. } => {
-                    let remote = upstream.to_remote_branch(repo)?;
+                    let remote = upstream.to_remote_branch(&remotes)?;
                     if !filter.delete_diverged(&remote.remote) {
                         Some(format!("diverged:{}", &remote.remote))
                     } else {
@@ -321,7 +324,7 @@ impl TrimPlan {
                     }
                 }
                 ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
-                    let remote = upstream.to_remote_branch(repo)?;
+                    let remote = upstream.to_remote_branch(&remotes)?;
                     if !filter.delete_merged_non_upstream_remote_tracking(&remote.remote) {
                         Some(format!("remote:{}", &remote.remote))
                     } else {
@@ -484,12 +487,14 @@ impl ClassifiedBranch {
         }
     }
 
+    // #[deprecated = "Fix everywhere?"] TODO
     pub fn remote(&self, repo: &Repository) -> Result<Option<RemoteBranch>> {
+        let remotes = get_remotes(&repo)?;
         match self {
             ClassifiedBranch::MergedRemoteTracking(upstream)
             | ClassifiedBranch::DivergedRemoteTracking { upstream, .. }
             | ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
-                let remote = upstream.to_remote_branch(repo)?;
+                let remote = upstream.to_remote_branch(&remotes)?;
                 Ok(Some(remote))
             }
             ClassifiedBranch::MergedDirectFetch { remote, .. }

@@ -6,6 +6,7 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::{ls_remote_head, ForceSendSync, RemoteHead, RemoteTrackingBranch};
+use git_trim::util::get_remotes;
 
 pub struct RemoteHeadChangeChecker {
     join_handle: JoinHandle<Result<Vec<RemoteHead>>>,
@@ -40,6 +41,8 @@ impl RemoteHeadChangeChecker {
             fetched_remote_heads.push(remote_head);
         }
 
+        let remotes = get_remotes(&repo)?;
+
         let mut out_of_sync = Vec::new();
         for reference in repo.references_glob("refs/remotes/*/HEAD")? {
             let reference = reference?;
@@ -56,7 +59,7 @@ impl RemoteHeadChangeChecker {
             };
             let refname = resolved.name().context("non utf-8 reference name")?;
 
-            let remote_head = RemoteTrackingBranch::new(refname).to_remote_branch(repo)?;
+            let remote_head = RemoteTrackingBranch::new(refname).to_remote_branch(&remotes)?;
 
             let fetch_remote_head = fetched_remote_heads
                 .iter()

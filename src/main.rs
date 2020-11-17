@@ -9,9 +9,12 @@ use dialoguer::Confirm;
 use git2::{BranchType, Repository};
 use log::*;
 
-use git_trim::args::{Args, PorcelainFormat};
 use git_trim::config::{self, get, Config, ConfigValue};
 use git_trim::porcelain_outputs::{print_json, print_local, print_remote};
+use git_trim::{
+    args::{Args, PorcelainFormat},
+    get_remotes,
+};
 use git_trim::{
     delete_local_branches, delete_remote_branches, get_trim_plan, ls_remote_head, remote_update,
     ClassifiedBranch, ForceSendSync, Git, LocalBranch, PlanParam, RemoteHead, RemoteTrackingBranch,
@@ -200,6 +203,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
     println!("  remote references:");
     let remote_refs_to_delete = HashSet::<_>::from_iter(plan.remotes_to_delete(repo)?);
     let mut printed_remotes = HashSet::new();
+    let remotes = get_remotes(&repo)?;
     for remote_ref in repo.branches(Some(BranchType::Remote))? {
         let (branch, _) = remote_ref?;
         if branch.get().symbolic_target_bytes().is_some() {
@@ -211,7 +215,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             .shorthand()
             .context("non utf-8 remote ref name")?;
         let upstream = RemoteTrackingBranch::new(&refname);
-        let remote_branch = upstream.to_remote_branch(repo)?;
+        let remote_branch = upstream.to_remote_branch(&remotes)?;
         if remote_refs_to_delete.contains(&remote_branch) {
             continue;
         }
@@ -317,6 +321,8 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
     }
     println!();
 
+    let remotes = get_remotes(&repo)?;
+
     let mut merged_locals = Vec::new();
     let mut merged_remotes = Vec::new();
     let mut stray = Vec::new();
@@ -328,11 +334,11 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             }
             ClassifiedBranch::Stray(local) => stray.push(local.short_name().to_owned()),
             ClassifiedBranch::MergedRemoteTracking(upstream) => {
-                let remote = upstream.to_remote_branch(repo)?;
+                let remote = upstream.to_remote_branch(&remotes)?;
                 merged_remotes.push(remote.to_string())
             }
             ClassifiedBranch::DivergedRemoteTracking { local, upstream } => {
-                let remote = upstream.to_remote_branch(repo)?;
+                let remote = upstream.to_remote_branch(&remotes)?;
                 merged_locals.push(local.short_name().to_owned());
                 diverged_remotes.push(remote.to_string())
             }
@@ -345,7 +351,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
                 merged_locals.push(format!("{} (non-tracking)", local.short_name()));
             }
             ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
-                let remote = upstream.to_remote_branch(repo)?;
+                let remote = upstream.to_remote_branch(&remotes)?;
                 merged_remotes.push(format!("{} (non-upstream)", remote.to_string()));
             }
         }

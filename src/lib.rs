@@ -6,7 +6,7 @@ mod merge_tracker;
 pub mod porcelain_outputs;
 mod simple_glob;
 mod subprocess;
-mod util;
+pub mod util; // TODO(siedentop): Some help appreciated here. I couldn't get it to work without the 'pub'.
 
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
@@ -29,7 +29,7 @@ use crate::core::{
 pub use crate::core::{ClassifiedBranch, SkipSuggestion, TrimPlan};
 use crate::merge_tracker::MergeTracker;
 pub use crate::subprocess::{ls_remote_head, remote_update, RemoteHead};
-pub use crate::util::ForceSendSync;
+pub use crate::util::{get_remotes, ForceSendSync};
 
 pub struct Git {
     pub repo: Repository,
@@ -90,12 +90,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     let mut classifier = Classifier::new(git, &merge_tracker);
     let mut skipped = HashMap::new();
 
-    let mut remotes = vec![];
-    for remote_name in git.repo.remotes()?.iter() {
-        let remote_name = remote_name.context("non-utf8 remote name")?;
-        let remote = git.repo.find_remote(&remote_name)?;
-        remotes.push(remote);
-    }
+    let remotes = get_remotes(&git.repo)?;
 
     info!("Enqueue classification requests");
     if param.delete.scan_tracking() {
@@ -124,7 +119,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     } else {
         for (local, upstream) in &tracking_branches {
             if let Some(upstream) = upstream {
-                let remote = upstream.to_remote_branch_cached(&remotes)?.remote;
+                let remote = upstream.to_remote_branch(&remotes)?.remote;
                 let suggestion = SkipSuggestion::TrackingRemote(remote);
                 skipped.insert(local.refname.clone(), suggestion.clone());
                 skipped.insert(upstream.refname.clone(), suggestion.clone());
@@ -152,14 +147,14 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
 
     for base in &base_upstreams {
         for remote_tracking in &non_upstream_branches {
-            let remote = remote_tracking.to_remote_branch_cached(&remotes)?;
+            let remote = remote_tracking.to_remote_branch(&remotes)?;
             if param.delete.scan_non_upstream_remote(&remote.remote) {
                 classifier.queue_request(NonUpstreamBranchClassificationRequest {
                     base,
                     remote: remote_tracking,
                 });
             } else {
-                let remote = remote_tracking.to_remote_branch_cached(&remotes)?.remote;
+                let remote = remote_tracking.to_remote_branch(&remotes)?.remote;
                 skipped.insert(
                     remote_tracking.refname.clone(),
                     SkipSuggestion::NonUpstream(remote),
