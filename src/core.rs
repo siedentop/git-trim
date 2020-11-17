@@ -48,8 +48,9 @@ impl TrimPlan {
 
     pub fn remotes_to_delete(&self, repo: &Repository) -> Result<Vec<RemoteBranch>> {
         let mut result = Vec::new();
+        let remotes = get_remotes(&repo)?;
         for branch in &self.to_delete {
-            if let Some(remote) = branch.remote(repo)? {
+            if let Some(remote) = branch.remote(&remotes)? {
                 result.push(remote);
             }
         }
@@ -208,8 +209,9 @@ impl TrimPlan {
     pub fn preserve_non_heads_remotes(&mut self, repo: &Repository) -> Result<()> {
         let mut preserve = Vec::new();
 
+        let remotes = get_remotes(&repo)?;
         for branch in &self.to_delete {
-            let remote = if let Some(remote) = branch.remote(repo)? {
+            let remote = if let Some(remote) = branch.remote(&remotes)? {
                 remote
             } else {
                 continue;
@@ -487,14 +489,12 @@ impl ClassifiedBranch {
         }
     }
 
-    // #[deprecated = "Fix everywhere?"] TODO
-    pub fn remote(&self, repo: &Repository) -> Result<Option<RemoteBranch>> {
-        let remotes = get_remotes(&repo)?;
+    pub fn remote(&self, remotes: &Vec<git2::Remote>) -> Result<Option<RemoteBranch>> {
         match self {
             ClassifiedBranch::MergedRemoteTracking(upstream)
             | ClassifiedBranch::DivergedRemoteTracking { upstream, .. }
             | ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
-                let remote = upstream.to_remote_branch(&remotes)?;
+                let remote = upstream.to_remote_branch(remotes)?;
                 Ok(Some(remote))
             }
             ClassifiedBranch::MergedDirectFetch { remote, .. }

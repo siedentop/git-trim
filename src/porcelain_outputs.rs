@@ -1,7 +1,7 @@
 use anyhow::Result;
 use git2::Repository;
 
-use crate::TrimPlan;
+use crate::{get_remotes, TrimPlan};
 
 /// Prints all locally to-be-deleted branches.
 pub fn print_local(
@@ -31,8 +31,9 @@ pub fn print_remote(
     mut writer: impl std::io::Write,
 ) -> Result<()> {
     let mut merged_remotes = Vec::new();
+    let remotes = get_remotes(&repo)?;
     for branch in &plan.to_delete {
-        if let Some(remote) = branch.remote(repo)? {
+        if let Some(remote) = branch.remote(&remotes)? {
             merged_remotes.push(remote);
         }
     }
