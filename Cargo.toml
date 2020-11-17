@@ -21,6 +21,12 @@ required-features = ["build-man"]
 [features]
 build-man = ["man", "rson_rs", "regex"]
 
+[profile.release]
+# TODO(siedentop): Remove this again, as it is only useful for profiling. However,
+# I need this so much at the moment that I am commmitting it.
+debug = true
+lto = "fat"
+
 [build-dependencies]
 vergen = "3.1.0"
 

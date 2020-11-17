@@ -80,6 +80,10 @@ impl MergeTracker {
             .id();
         let target_commit_id_string = target_commit_id.to_string();
 
+        // TODO(siedentop/#20): Re-evaluate the need for the trace loggings in this function.
+        let s = self.merged_set.lock().unwrap().len();
+        trace!("check_and_track: {} {} {}", base, branch.refname(), s);
+
         // I know the locking is ugly. I'm trying to hold the lock as short as possible.
         // Operations against `repo` take long time up to several seconds when the disk is slow.
         {
@@ -106,6 +110,7 @@ impl MergeTracker {
                 // In this diagram, `$(git merge-base A B) == B`.
                 // When we're sure that A is merged into base, then we can safely conclude that
                 // B is also merged into base.
+                trace!("calc merge-base: {} {}", merged_oid, target_commit_id);
                 let noff_merged = match repo.merge_base(merged_oid, target_commit_id) {
                     Ok(merge_base) if merge_base == target_commit_id => {
                         let mut set = self.merged_set.lock().unwrap();
@@ -157,6 +162,8 @@ impl MergeTracker {
         if squash_merged {
             debug!("squash merged: {} -> {}", branch.refname(), &base);
         }
+        let e = self.merged_set.lock().unwrap().len();
+        trace!("check_and_track: Size (end, diff): {} \t{}", e, e - s);
         Ok(MergeState {
             merged: squash_merged,
             commit: target_commit_id_string,
