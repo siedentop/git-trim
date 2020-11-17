@@ -148,11 +148,11 @@ impl RemoteTrackingBranch {
     }
 
     /// Faster implementation that avoids calling git2::Repository methods remotes() and find_remote().
-    pub fn to_remote_branch_cached(
+    pub fn to_remote_branch_cached<'a>(
         &self,
-        remotes: &Vec<git2::Remote>,
+        remotes: impl IntoIterator<Item = &'a git2::Remote<'a>>,
     ) -> std::result::Result<RemoteBranch, RemoteBranchError> {
-        for remote in remotes.iter() {
+        for remote in remotes.into_iter() {
             if let Some(expanded) = expand_refspec(
                 &remote,
                 &self.refname,
