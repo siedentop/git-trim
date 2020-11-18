@@ -143,6 +143,7 @@ impl RemoteTrackingBranch {
                 });
             }
         }
+        error!("Remote not found for branch {}", self.refname);
         Err(RemoteBranchError::RemoteNotFound)
     }
 }
